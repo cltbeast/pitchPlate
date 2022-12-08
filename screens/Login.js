@@ -1,8 +1,8 @@
 import { useNavigation } from '@react-navigation/core'
 import React, { useEffect, useState } from 'react'
-import { ScrollView, StyleSheet, Image, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { ScrollView, StyleSheet, Image, Text, TouchableOpacity} from 'react-native'
 import { app } from '../firebase'
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import LoginInput from '../components/LoginInput';
 import LoginButton from '../components/LoginButton';
 
@@ -46,7 +46,7 @@ const LoginScreen = () => {
         onChangeText={(userEmail) => setEmail(userEmail)}
         placeholderText="Email"
         iconType="user"
-        keyboardType="email-address"
+        UIKeyboardType="email-address"
         autoCapitalize="none"
         autoCorrect={false}
       />
@@ -56,6 +56,7 @@ const LoginScreen = () => {
         onChangeText={(userPassword) => setPassword(userPassword)}
         placeholderText="Password"
         iconType="lock"
+        UIKeyboardType = "default"
         secureTextEntry={true}
       />
 

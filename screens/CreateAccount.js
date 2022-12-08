@@ -1,10 +1,12 @@
 import React, {useState} from 'react';
-import {View, Text, TouchableOpacity, StyleSheet, Alert} from 'react-native';
+import {View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView} from 'react-native';
 import FormInput from '../components/FormInput';
 import FormButton from '../components/FormButton';
-import { app } from '../firebase'
+import { app, db } from '../firebase'
 import { getAuth , createUserWithEmailAndPassword } from "@firebase/auth"
 import { useNavigation } from '@react-navigation/core'
+import {  doc, setDoc} from "firebase/firestore";
+import { SelectList } from 'react-native-dropdown-select-list'
 
 
 
@@ -12,25 +14,35 @@ const auth = getAuth(app);
 
 
 
-
 const SignupScreen = ({}) => {
   const navigation = useNavigation();
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState();
-  const [confirmPassword, setConfirmPassword] = useState();
+  const [username, setUsername] = useState("");
+  const [teamID, setTeamID] = useState("");
+
+  const [password, setPassword] = useState(""); // was ()
+  const [userType, setUserType] = useState("");
   
-  const signUp = async () => {
-    createUserWithEmailAndPassword(auth, email, password).then(cred => {
-        console.log(cred);
+  const signUp = async () => {  
+    await createUserWithEmailAndPassword(auth, email, password).then(async cred => {
+        await setDoc(doc(db, "users", cred.user.uid), {
+          username: username,
+          email: email,
+          type: userType,
+        });
         navigation.navigate("Home");
-       }).catch((error) => {
-        const errorCode = error.code;
-        const errorMessage = error.message;
+      }).catch((error) => {
+        console.log(error);
       });
   }
+  const data = [
+    {key:'1', value:'Individual'},
+    {key:'2', value:'Coach'},
+  ]
+
 
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
       <Text style={styles.text}>Create an account</Text>
 
       <FormInput
@@ -44,47 +56,52 @@ const SignupScreen = ({}) => {
       />
 
       <FormInput
+        labelValue={username}
+        onChangeText={(username) => setUsername(username)}
+        placeholderText="Username"
+        iconType="user"
+        keyboardType="default"
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      <FormInput
+        labelValue={teamID}
+        onChangeText={(teamID) => setTeamID(teamID)}
+        placeholderText="Team Identification Number"
+        iconType="user"
+        keyboardType="default"
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+
+      <FormInput
         labelValue={password}
         onChangeText={(userPassword) => setPassword(userPassword)}
         placeholderText="Password"
         iconType="lock"
         secureTextEntry={true}
       />
-
-      <FormInput
-        labelValue={confirmPassword}
-        onChangeText={(userPassword) => setConfirmPassword(userPassword)}
-        placeholderText="Confirm Password"
-        iconType="lock"
-        secureTextEntry={true}
+      <View style = {styles.dropdown}>
+      <SelectList 
+        setSelected={(val) => setUserType(val)} 
+        data={data} 
+        save="value"
       />
-
+      </View>
       <FormButton
         buttonTitle="Sign Up"
+        disabled= {username == "" || email == "" || teamID == "" || password == "" || teamID == "" || userType == ""}
         onPress={() => signUp()}
       />
 
-      <View style={styles.textPrivate}>
-        <Text style={styles.color_textPrivate}>
-          By registering, you confirm that you accept our{' '}
-        </Text>
-        <TouchableOpacity onPress={() => alert('Terms Clicked!')}>
-          <Text style={[styles.color_textPrivate, {color: '#e88832'}]}>
-            Terms of service
-          </Text>
-        </TouchableOpacity>
-        <Text style={styles.color_textPrivate}> and </Text>
-        <Text style={[styles.color_textPrivate, {color: '#e88832'}]}>
-          Privacy Policy
-        </Text>
-      </View>
-
       <TouchableOpacity
-        style={styles.navButton}
+        style = {styles.signinPage}
         onPress={() => navigation.navigate('Login')}>
-        <Text style={styles.navButtonText}>Have an account? Sign In</Text>
+          <Text style={styles.navButtonText}>Have an account? Sign In</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 };
 
@@ -94,8 +111,8 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: '#f9fafd',
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    //justifyContent: 'center',
+    //alignItems: 'center',
     padding: 20,
   },
   text: {
@@ -125,4 +142,11 @@ const styles = StyleSheet.create({
     //fontFamily: 'Lato-Regular',
     color: 'grey',
   },
+  dropdown: {
+    paddingTop : 15,
+    paddingBottom: 15,
+  },
+  signinPage: {
+    paddingTop:25
+  }
 });
