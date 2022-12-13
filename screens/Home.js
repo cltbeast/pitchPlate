@@ -2,7 +2,7 @@ import { getAuth, signOut } from '@firebase/auth'
 import React  from 'react'
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { app, db } from '../firebase'
-import { doc, setDoc, getDocs, collection, getDoc, query, where} from "firebase/firestore";
+import { doc, setDoc, getDocs, collection, getDoc, query, where, FieldValue} from "firebase/firestore";
 import { Table, TableWrapper, Row, Rows, Col, Cols, Cell } from 'react-native-table-component';
 
 const auth = getAuth(app);
@@ -28,6 +28,9 @@ class HomeScreen extends React.Component{
       sessions: [],
       userType : "",
       sessionArray: [],
+      userType : "",
+      players: [],
+      playerArray: []
     }
   }
 
@@ -55,7 +58,56 @@ class HomeScreen extends React.Component{
         balls: 0, 
         creationDate: date
     });
+    
     this.setState({sessions: []})
+  }
+
+  
+
+  getUserType = async () => {
+    const queryForSessions = query(collection(db, "users"), where ("email", "==", auth.currentUser?.email));
+    const querySnapshot = await getDocs(queryForSessions);
+    querySnapshot.forEach((doc)=> {
+      this.setState({userType : doc.data().type});
+    })
+  }
+  getPlayers = async () => {
+    var coachTeamId = "";
+    this.setState({players: []});
+    this.setState({playerArray: []});
+    var localPlayers = [];
+    const queryForTeamID = query(collection(db, "users"), where ("email", "==", auth.currentUser?.email));
+    const queryp = await getDocs(queryForTeamID);
+    queryp.forEach((doc)=> {
+      coachTeamId = doc.data().teamID;
+    })
+
+    const queryForSessions = query(collection(db, "users"), where ("teamID", "==", coachTeamId));
+    const querySnapshot = await getDocs(queryForSessions);
+    querySnapshot.forEach((doc)=> {
+      this.setState({players: [...this.state.players, doc.data()]})
+    })
+    var answer = this.state.players.map(function(el){
+      var arr = [0,0,0]
+      for (var key in el){
+        if (key in el){
+          if (key === "email"){
+            arr[0] = el[key]
+          }
+          else if (key === "sessions"){
+            arr[1] = el[key]
+          }
+          else if (key === "type"){
+            arr[2] = el[key]
+          }
+        }
+      }
+      
+      if (arr[2] === "Individual"){
+        localPlayers.push(arr.slice(0,-1));
+      }
+    })
+    this.setState({playerArray : [...this.state.playerArray, localPlayers]});
   }
   
   getSessions = async () => {
@@ -65,7 +117,8 @@ class HomeScreen extends React.Component{
     const queryForSessions = query(collection(db, "sessions"), where ("user", "==", auth.currentUser?.uid));
     const querySnapshot = await getDocs(queryForSessions);
     querySnapshot.forEach((doc)=> {
-      this.setState({ sessions: [...this.state.sessions, doc.data()]})})
+      this.setState({ sessions: [...this.state.sessions, doc.data()]})
+    })
     var answer=this.state.sessions.map(function(el){
       var arr=[0,0,0,0];
       for(var key in el){
@@ -86,10 +139,12 @@ class HomeScreen extends React.Component{
       });
       this.setState({sessionArray : [...this.state.sessionArray, localSessions]});
     
-    console.log(this.state.sessionArray);
+    //console.log(this.state.sessionArray);
   }
-  componentDidMount = async () => {
+  componentDidMount () {
       this.getSessions();
+      this.getUserType();
+      this.getPlayers();
   }
 
 
@@ -100,22 +155,31 @@ class HomeScreen extends React.Component{
       <View style = {styles.user}>
         <View style={styles.user}>
           <Text style = {{paddingTop:30, paddingLeft:15, fontWeight : "bold"}}> {auth.currentUser?.email}</Text>
-          <Text style = {{paddingTop : 20, paddingLeft : 15,  fontWeight : "bold"}}> Account type: Coach </Text>
+          <Text style = {{paddingTop : 20, paddingLeft : 15,  fontWeight : "bold"}}> Account type: {this.state.userType} </Text>
         </View>
-        <View style={styles.tableContainer}>
+        {this.state.userType == "Coach" && <View style={styles.tableContainer}>
           <Table borderStyle={{borderWidth: 1, borderColor: '#000000'}}>
             <Row data={this.tableHeadersCoach} style={styles.HeadStyle} textStyle={styles.TableText}/>
-            {/* <Rows data={this.state.sessionArray[0]} textStyle={styles.TableText}/> */}
-            <Rows data={this.playerArray} textStyle={styles.TableText}/>
+            <Rows data={this.state.playerArray[0]} textStyle={styles.TableText}/>
           </Table>
-        </View>
+        </View>}
+
+
+        {this.state.userType == "Individual" && <View style={styles.tableContainer}>
+          <Table borderStyle={{borderWidth: 1, borderColor: '#000000'}}>
+            <Row data={this.tableHeaders} style={styles.HeadStyle} textStyle={styles.TableText}/>
+            <Rows data={this.state.sessionArray[0]} textStyle={styles.TableText}/>
+          </Table>
+        </View>}
+
+        
         <View style = {styles.userInfo}>
-        {/* <TouchableOpacity
+        {this.state.userType == "Individual" && <TouchableOpacity
           onPress={() => this.createSession().then(this.props.navigation.navigate('Session'))}
           style={styles.button}
           >
           <Text style={styles.buttonText}> Start Session</Text>
-        </TouchableOpacity> */}
+        </TouchableOpacity>}
         <TouchableOpacity
           onPress={this.handleSignOut}
           style={styles.buttonSignOut}

@@ -29,6 +29,8 @@ const SignupScreen = ({}) => {
           username: username,
           email: email,
           type: userType,
+          teamID: teamID,
+          sessions: 0
         });
         navigation.navigate("Home");
       }).catch((error) => {

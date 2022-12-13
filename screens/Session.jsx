@@ -1,20 +1,19 @@
-import React, {useState, useContext} from 'react';
+import React from 'react';
 import { getAuth } from '@firebase/auth';
 import {
   View,
   Text,
   StyleSheet,
-  Alert,
   TouchableOpacity,
-  ActivityIndicator,
-  Image
 } from 'react-native';
-import {BleManager} from 'react-native-ble-plx'
 import { date } from './Home';
-import { doc, setDoc} from "firebase/firestore";
+import { doc, setDoc, onSnapshot, updateDoc,query,collection,where,getDocs} from "firebase/firestore";
 import { app, db } from '../firebase'
 
-const _BleManager = new BleManager();
+
+const latestPitchDocumentKey =  "3hCx34Um3uiyBSF0tvC8";
+
+const auth = getAuth(app);
 
 
 /**
@@ -33,7 +32,7 @@ class RenderPitch extends React.Component {
                     <View 
                       key = {key}
                       style = {[{
-                        backgroundColor: ((prop[0] > -10 || prop[0] < -200) || (prop[1] > 145 || prop[1] < 0)) 
+                        backgroundColor: ((prop[0] > -5 || prop[0] < -205) || (prop[1] > 145 || prop[1] < 0)) 
                                     ? 'blue'
                                     :  'red',
                         height: 10,
@@ -61,12 +60,6 @@ class RenderPitch extends React.Component {
 class SessionScreen extends React.Component {
   auth = getAuth(app);
   
-  
-
-    
-
-  
-  
   constructor(props) {
     super(props);    
     this.state = {
@@ -77,25 +70,13 @@ class SessionScreen extends React.Component {
       pitch : 0,
       strikeThrown : false,
       ballThrown : false,
-      connectingBluetooth : false,
       devices : "",
       deviceConnected : false,
+      latestPitchData : 1000,
     }
   }
   
-  throwStrike = async () => {
-      this.setState({strikes : this.state.strikes + 1});
-      this.setState({pitch : this.state.pitch + 1});
-      this.setState({strikeThrown:true});
-      this.setState({ballThrown:false});
-      let yValue = Math.floor(Math.random() * (-10 + 200 + 1)) - 200;
-      let xValue = Math.floor(Math.random() * (145 - 0 + 1)) + 0;
-      this.state.pitches.push([yValue,xValue]);
-      this.setState({connectingBluetooth:false});
-      console.log("strike thrown");
-      this.writeStrikeToDB();
-      
-  }
+  
   writeStrikeToDB = () => {
     const docRef = doc(db, "sessions", date);
         setDoc(docRef, {
@@ -105,7 +86,6 @@ class SessionScreen extends React.Component {
           user: this.auth.currentUser?.uid,
           creationDate: date
         });
-      Alert.alert("You have thrown a strike");
   }
   writeBallToDB = () => {
     const docRef = doc(db, "sessions", date);
@@ -117,61 +97,80 @@ class SessionScreen extends React.Component {
           creationDate : date
         });
   }
-  
-  throwBall = async () => {
-      this.setState({balls : this.state.balls + 1});
-      this.setState({pitch : this.state.pitch + 1});
-      this.setState({strikeThrown:false});
-      this.setState({ballThrown:true});
-      //Math.floor(Math.random() * (max - min + 1)) + min;
-      let yValue = Math.floor(Math.random() * (-11 + 50 + 1)) - 50;
-      let xValue = Math.floor(Math.random() * (170 - 146 + 1)) + 146;
-      this.state.pitches.push([yValue,xValue]);
-      this.writeBallToDB();
-      this.setState({connectingBluetooth:false});
-      Alert.alert("You have thrown a ball");
-  }
-  // startScan = () => {
-  //  this.setState({connectingBluetooth: true});
-  // }
 
-  sessionEnded = () =>{
+
+  throwPitch(yVal) {
+    console.log("yvalue: " + yVal);
+    let yValue = yVal;// this.state.latestPitchData; //Math.floor(Math.random() * (-10 + 200 + 1)) - 200;
+    let xValue = Math.floor(Math.random() * (145 - 0 + 1)) + 0;
+    this.state.pitches.push([yValue,xValue]);
+    if (yValue > -5 || yValue < -205){
+      this.setState({
+        balls : this.state.balls + 1,
+        pitch : this.state.pitch + 1,
+        strikeThrown:false,
+        ballThrown:true
+      });
+      this.writeBallToDB();
+      console.log("Ball thrown");
+    }
+    else{
+      this.setState({
+          strikes : this.state.strikes + 1,
+          pitch : this.state.pitch + 1,
+          strikeThrown:true,
+          ballThrown:false
+      });
+      console.log("Strike thrown");
+      this.writeStrikeToDB();
+    }
+    
+    
+  }
+  
+
+
+
+  sessionEnded = async () => {
+    const docRef = doc(db, "sessionId", "3hCx34Um3uiyBSF0tvC8");
+    var sessions = 0;
+    try {
+      const ref = await updateDoc(docRef, {
+        pitchData : 1000
+      })
+      const queryForSessions = query(collection(db, "users"), where ("email", "==", auth.currentUser?.email));
+      const querySnapshot = await getDocs(queryForSessions);
+      querySnapshot.forEach((doc)=> {
+        sessions = doc.data().sessions;
+      })
+      const sessionRef =  doc(db, "users", auth.currentUser?.uid);
+      const reff = await updateDoc(sessionRef, {
+        sessions : sessions + 1
+      });
+
+    } catch (e) {
+      console.error("Error adding document: ", e);
+    }
     this.props.navigation.navigate('Home');
   }
+
+  getNewPitch(){
+    let yValue = 0;
+    const snapshot = onSnapshot(doc(db, "sessionId", latestPitchDocumentKey), (doc) => {
+      if (doc.data()){
+        yValue = doc.data().pitchData;
+        console.log("data " + this.state.latestPitchData);
+        this.state.latestPitchData != yValue ? this.throwPitch(Number(yValue)) : console.log("first render");
+        this.setState({
+          latestPitchData: doc.data().pitchData,
+        });
+      }
+    });
+  }
   
-  
-  startScan = async() => {
-    this.setState({deviceConnected : true});
-    // console.log("scanning");
-    // this.setState({connectingBluetooth: true});
-    // _BleManager.startDeviceScan(null, {
-    //   allowDuplicates: false,
-    //   },
-    //   async (error, device) => {
-    //     if (error) {
-    //       _BleManager.stopDeviceScan();
-    //     }
-    //     console.log("local name" + device.localName);
-    //     if (device.localName == 'DSD TECH') {
-    //         Alert.alert("Plate found");
-    //         console.log("devices: " + device.id)
-    //         _BleManager.stopDeviceScan();
-    //         device.connect().then(async (device)=> {
-    //           Alert.alert("Plate connected!");
-    //           console.log("here");
-    //           this.setState({deviceConnected : true});
-    //           console.log(await _BleManager.readCharacteristicForDevice(device.id, "0000ffe0-0000-1000-8000-00805f9b34fb", "0000FFE1-0000-1000-8000-00805F9B34FB"));
-    //           //console.log(await _BleManager.characteristicsForDevice(device.id, "0000FFE0-0000-1000-8000-00805F9B34FB"));
-    //           //this.getCharacteristics(device);
-    //           console.log("device id: " + device.id);
-    //           this.setState({device: device.id});
-    //         });
-    //     } 
-    //   }, 
-    //   )
-  };
-  getCharacteristics = async device => {
-    console.log(await _BleManager.discoverAllServicesAndCharacteristicsForDevice(device.id));
+
+  componentDidMount(){
+    this.getNewPitch();
   }
 
   
@@ -181,7 +180,6 @@ class SessionScreen extends React.Component {
     return (
       <View style={styles.container}>
         <View style={styles.pitchCount}>
-        {this.state.connectingBluetooth && <ActivityIndicator style={{paddingBottom:15}}size="large" color="#A7C7E7" />}
           <Text style = {styles.pitchCountText}>Session Start Time: {date} {this.state.pitches}</Text>
           <Text style = {styles.pitchCountText}>Pitches: {this.state.pitch}</Text>
           <Text style = {styles.pitchCountText}>Strikes: {this.state.strikes}</Text>
@@ -199,28 +197,12 @@ class SessionScreen extends React.Component {
           <Text style={styles.SubmitBtnText}>Plate Not Connected</Text>
       </TouchableOpacity>}
       </View>
-      
-        <View style = {styles.ButtonContainer}>
-          {this.state.pitch < 10 && 
-          <TouchableOpacity style={styles.StrikeButton} onPress={this.throwStrike}>
-            <Text style={styles.SubmitBtnText}></Text>
-          </TouchableOpacity>}
-          {this.state.pitch < 10 &&
-          <TouchableOpacity style={styles.BallButton} onPress={this.throwBall}>
-            <Text style={styles.SubmitBtnText}></Text>
-          </TouchableOpacity>}
-        </View>
+    
      
       <View style={styles.Zone}>
         <View style = {styles.strikeZone}></View>
        {this.state.strikeThrown && <RenderPitch  pitches={this.state.pitches}> </RenderPitch>}
        {this.state.ballThrown && <RenderPitch  pitches = {this.state.pitches}> </RenderPitch>}
-       {/* <View style = {styles.batterImage}>
-        <Image
-          source={require('../assets/batterPicture.png')}
-          style={styles.batterImage}
-        />
-       </View> */}
       </View>
         <View style = {styles.submitButton}>
               <TouchableOpacity style={styles.SubmitBtn} onPress={this.sessionEnded}>
@@ -326,7 +308,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     padding: 15,
     width : 150,
-    backgroundColor : "#cecece"
+    backgroundColor : "#FF0000"
   }, 
   BallButton : {
     flexDirection:'row',
@@ -334,7 +316,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     padding: 15,
     width : 150,
-    backgroundColor : "#cecece",
+    backgroundColor : "#FF0000",
   },
   connectButton: {
     flexDirection:'row',
